@@ -47,6 +47,74 @@ def token_merge(
 
     return prompt_embeds
 
+def get_adaptive_weights(attention_store, idx_merge, attention_res=16):
+    """
+    Calculates dynamic weights (alpha) based on Cross-Attention magnitude.
+    """
+    # 1. Get Aggregated Cross-Attention Maps (Shape: H x W x 77)
+    # This sums up attention across heads and layers
+    attention_maps = aggregate_attention(
+        attention_store=attention_store,
+        res=attention_res,
+        from_where=("up", "down", "mid"),
+        is_cross=True,
+        select=0
+    )
+    
+    # 2. Calculate Total "Mass" (Importance) for each token
+    # Sum over spatial dimensions (H, W) to get a score per token
+    # Shape: [77]
+    token_importance = attention_maps.sum(dim=(0, 1))
+    
+    weights = []
+    for idxs in idx_merge:
+        # Structure: idxs = [[noun_indices], [modifier_indices]]
+        # Example: [[4], [3]]
+        noun_idx = idxs[0][0]
+        mod_indices = idxs[1]
+        
+        # Get raw importance scores
+        score_noun = token_importance[noun_idx]
+        score_mod = token_importance[mod_indices].sum() # Sum if multiple modifiers
+        
+        # 3. Normalize to get Alpha (Equation 1)
+        # alpha_i = score_i / (score_noun + score_mod)
+        total_score = score_noun + score_mod + 1e-6 # Avoid div by zero
+        
+        alpha_noun = score_noun / total_score
+        alpha_mod = score_mod / total_score
+        
+        weights.append((alpha_noun, alpha_mod))
+        
+    return weights
+
+def adaptive_token_merge(prompt_embeds: torch.Tensor, idx_merge: List[List[int]], weights: List[Tuple[float, float]]) -> torch.Tensor:
+    """
+    Merges tokens using the calculated dynamic weights.
+    Equation: c_hat = alpha_noun * c_noun + alpha_mod * c_mod
+    """
+    # Clone to avoid in-place errors if needed, though inplace is fine here
+    prompt_embeds = prompt_embeds.clone()
+
+    for i, idxs in enumerate(idx_merge):
+        noun_idx = idxs[0][0]
+        mod_indices = idxs[1]
+        
+        # Retrieve dynamic weights calculated earlier
+        alpha_noun, alpha_mod = weights[i]
+        
+        # Perform Weighted Sum
+        # We sum all modifier embeddings first, then apply their alpha
+        mod_embed_sum = prompt_embeds[mod_indices].sum(dim=0)
+        
+        prompt_embeds[noun_idx] = (alpha_noun * prompt_embeds[noun_idx]) + (alpha_mod * mod_embed_sum)
+        
+        # Silence the source tokens (modifiers)
+        prompt_embeds[mod_indices] = 0
+        if len(idxs[0]) > 1:
+            prompt_embeds[idxs[0][1:]] = 0
+
+    return prompt_embeds
 
 def get_centroid(attn_map: torch.Tensor) -> torch.Tensor:
     """
@@ -614,8 +682,8 @@ class tomePipeline(StableDiffusionXLPipeline):
         # stoken1, stoken2 = prompt_embeds[0,2], prompt_embeds[0,6]
         # -----------------------------------
         # token merge
-        if not run_standard_sd and token_refinement_steps:
-            prompt_embeds[0] = token_merge(prompt_embeds[0], indices_to_alter)
+        # if not run_standard_sd and token_refinement_steps:
+        #     prompt_embeds[0] = token_merge(prompt_embeds[0], indices_to_alter)
 
         # 4. Prepare timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
@@ -773,6 +841,32 @@ class tomePipeline(StableDiffusionXLPipeline):
                 prompt_embeds2 = (
                     prompt_embeds if prompt_embeds2 is None else prompt_embeds2
                 )
+
+                ### New code for CFG based token merging; don't merge before first iter, merge later
+                if not run_standard_sd and indices_to_alter:
+                    # 1. If it is the very first step, we just run normally to collect attention.
+                    # 2. Immediately after the first step is done (or at start of step 1), calculate and merge.
+                    
+                    if i == 1: # Perform merge at start of Step 1 (using Step 0's attention)
+                        print("Calculating Adaptive Weights from Step 0 Attention...")
+                        
+                        # Calculate weights using the attention store populated in Step 0
+                        dynamic_weights = get_adaptive_weights(
+                            attention_store, 
+                            indices_to_alter, 
+                            attention_res=attention_res or 16
+                        )
+                        
+                        # Apply the merge to prompt_embeds2
+                        # We use prompt_embeds[0] as base to ensure we don't merge twice
+                        # Note: We are modifying the embedding used for current and future steps
+                        prompt_embeds2[0] = adaptive_token_merge(
+                            prompt_embeds[0], # Use original clean embeds as source
+                            indices_to_alter, 
+                            dynamic_weights
+                        )
+                        
+                        print(f"Adaptive Weights Applied: {dynamic_weights}")
 
                 with torch.enable_grad():
                     if not run_standard_sd:
