@@ -5,7 +5,7 @@ import pyrallis
 import torch
 from PIL import Image
 
-from configs.demo_config import RunConfig1, RunConfig2
+from configs.demo_config import RunConfig1, RunConfig2, RunConfigAdversarial
 from pipe_tome import tomePipeline
 from utils import ptp_utils, vis_utils
 from utils.ptp_utils import AttentionStore
@@ -117,7 +117,7 @@ def filter_text(token_indices, prompt_anchor):
 
 
 def main():
-    config = RunConfig2() #edit this to change the config
+    config = RunConfigAdversarial #edit this to change the config
     device = "cuda" if torch.cuda.is_available() else "cpu"
     stable, prompt_parser = load_model(config, device)
     # ------------------parser prompt-------------------------

@@ -149,3 +149,47 @@ class RunConfig2:
 
     def __post_init__(self):
         self.output_path.mkdir(exist_ok=True, parents=True)
+
+@dataclass
+class RunConfigAdversarial:
+
+    prompt: str = "a knitted car"
+    model_path: str = "stabilityai/stable-diffusion-xl-base-1.0"
+    
+    use_nlp: bool = True
+    
+    # Merging "knitted"(1) into "car"(2)
+    # Indices: "a"(0), "knitted"(1), "car"(2)
+    token_indices: List[int] = field(default_factory=lambda: [[[2], [1]]])
+    
+    prompt_anchor: List[str] = field(default_factory=lambda: ["a knitted car"])
+    prompt_merged: str = "a car"
+    prompt_length: int = 3
+    seeds: List[int] = field(default_factory=lambda: [100, 2024])
+    
+    output_path: Path = Path("./demo_adversarial")
+    n_inference_steps: int = 50
+    guidance_scale: float = 7.5
+    attention_res: int = 32
+    
+    # TOGGLE THIS MANUALLY TO COMPARE
+    # False = Your Adaptive Method
+    # True  = Standard Baseline (Static Weights)
+    run_standard_sd: bool = False
+    
+    thresholds: Dict[int, float] = field(
+        default_factory=lambda: {
+            0: 26, 1: 25, 2: 24, 3: 23, 4: 22.5, 5: 22, 6: 21.5, 7: 21, 8: 21, 9: 21,
+        }
+    )
+    tome_control_steps: List[int] = field(default_factory=lambda: [5, 5])
+    token_refinement_steps: int = 3
+    attention_refinement_steps: List[int] = field(default_factory=lambda: [4, 4])
+    eot_replace_step: int = 60
+    use_pose_loss: bool = False
+    scale_factor: int = 3
+    scale_range: tuple = field(default_factory=lambda: (1.0, 0.0))
+    save_cross_attention_maps: bool = False
+
+    def __post_init__(self):
+        self.output_path.mkdir(exist_ok=True, parents=True)
