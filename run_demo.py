@@ -117,7 +117,7 @@ def filter_text(token_indices, prompt_anchor):
 
 
 def main():
-    config = RunConfigAdversarial #edit this to change the config
+    config = RunConfigAdversarial() #edit this to change the config
     device = "cuda" if torch.cuda.is_available() else "cpu"
     stable, prompt_parser = load_model(config, device)
     # ------------------parser prompt-------------------------
