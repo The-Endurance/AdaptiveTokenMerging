@@ -122,29 +122,59 @@ class AttendExciteCrossAttnProcessor:
 
         return hidden_states
 
+#   ORIGINAL METHOD
+# def register_attention_control(model, controller):
+#     attn_greenlist = ["up_blocks.0.attentions.1.transformer_blocks.1.attn2.processor",
+#                     "up_blocks.0.attentions.1.transformer_blocks.2.attn2.processor",
+#                     "up_blocks.0.attentions.1.transformer_blocks.3.attn2.processor",
+#                     "up_blocks.0.attentions.1.transformer_blocks.1.attn1.processor",
+#                     "up_blocks.0.attentions.1.transformer_blocks.2.attn1.processor",
+#                     "up_blocks.0.attentions.1.transformer_blocks.3.attn1.processor"]
+#     attn_procs = {}
+#     cross_att_count = 0
+#     for name in model.unet.attn_processors.keys():
+#         if name not in attn_greenlist:
+#             attn_procs[name] = model.unet.attn_processors[name]
+#             continue
+#         #     # if name.startswith('mid_block') and name.endswith("attn1.processor"):
+#         #     #     attn_procs[name] = CompactAttnProcessor(controller, 'mid')
+#         #     # else:
+#         #     #     attn_procs[name] = model.unet.attn_processors[name]
+#         #     # continue
+#         #     if name.endswith("attn2.processor"):
+#         #         attn_procs[name] = CompactAttnProcessor(controller, name.split("_")[0])
+#         #     else:
+#         #         attn_procs[name] = model.unet.attn_processors[name]
+#         #     continue
+#         if name.startswith("mid_block"):
+#             place_in_unet = "mid"
+#         elif name.startswith("up_blocks"):
+#             place_in_unet = "up"
+#         elif name.startswith("down_blocks"):
+#             place_in_unet = "down"
+#         else:
+#             continue
+
+#         cross_att_count += 1
+#         attn_procs[name] = AttendExciteCrossAttnProcessor(
+#             attnstore=controller, place_in_unet=place_in_unet
+#         )
+
+#     model.unet.set_attn_processor(attn_procs)
+#     controller.num_att_layers = cross_att_count
+
 def register_attention_control(model, controller):
-    attn_greenlist = ["up_blocks.0.attentions.1.transformer_blocks.1.attn2.processor",
-                    "up_blocks.0.attentions.1.transformer_blocks.2.attn2.processor",
-                    "up_blocks.0.attentions.1.transformer_blocks.3.attn2.processor",
-                    "up_blocks.0.attentions.1.transformer_blocks.1.attn1.processor",
-                    "up_blocks.0.attentions.1.transformer_blocks.2.attn1.processor",
-                    "up_blocks.0.attentions.1.transformer_blocks.3.attn1.processor"]
+    # REMOVED: attn_greenlist = [...] 
+    # We want to capture ALL cross-attention layers for accurate weights
+    
     attn_procs = {}
     cross_att_count = 0
+    
     for name in model.unet.attn_processors.keys():
-        if name not in attn_greenlist:
-            attn_procs[name] = model.unet.attn_processors[name]
-            continue
-        #     # if name.startswith('mid_block') and name.endswith("attn1.processor"):
-        #     #     attn_procs[name] = CompactAttnProcessor(controller, 'mid')
-        #     # else:
-        #     #     attn_procs[name] = model.unet.attn_processors[name]
-        #     # continue
-        #     if name.endswith("attn2.processor"):
-        #         attn_procs[name] = CompactAttnProcessor(controller, name.split("_")[0])
-        #     else:
-        #         attn_procs[name] = model.unet.attn_processors[name]
-        #     continue
+        # Identify if this is a cross-attention layer 
+        # (SDXL logic: generally if it doesn't end in attn1, or check config)
+        # However, checking startswith blocks is the safest way to map locations
+        
         if name.startswith("mid_block"):
             place_in_unet = "mid"
         elif name.startswith("up_blocks"):
@@ -152,8 +182,15 @@ def register_attention_control(model, controller):
         elif name.startswith("down_blocks"):
             place_in_unet = "down"
         else:
-            continue
+            continue # Skip layers that aren't in the main blocks
 
+        # Filter out Self-Attention if you only want Cross-Attention
+        # (Usually attn1 is self, attn2 is cross in SD1.5, but SDXL varies)
+        # For simplicity, we can wrap all, or check name.endswith("attn2.processor")
+        
+        # NOTE: Your original code filtered strict paths. 
+        # This relaxed version captures everything in the main blocks.
+        
         cross_att_count += 1
         attn_procs[name] = AttendExciteCrossAttnProcessor(
             attnstore=controller, place_in_unet=place_in_unet

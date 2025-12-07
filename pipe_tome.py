@@ -868,6 +868,13 @@ class tomePipeline(StableDiffusionXLPipeline):
                         
                         print(f"Adaptive Weights Applied: {dynamic_weights}")
 
+                        if hasattr(attention_store, 'reset'):
+                            attention_store.reset()
+                        else:
+                            # Fallback if your AttentionStore doesn't have a reset() method
+                            attention_store.step_store = attention_store.get_empty_store()
+                            attention_store.attention_store = {}
+
                 with torch.enable_grad():
                     if not run_standard_sd:
                         token_control, attention_control = tome_control_steps

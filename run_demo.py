@@ -134,6 +134,13 @@ def main():
     else:
         token_indices = config.token_indices
         prompt_anchor = config.prompt_anchor
+    
+    print(f"\n{'='*30}")
+    print(f"DEBUG: Prompt being run: '{config.prompt}'")
+    print(f"DEBUG: Indices found by NLP: {token_indices}") 
+    if not token_indices:
+        print("!!! WARNING: token_indices is EMPTY. The pipeline will SKIP merging.")
+    print(f"{'='*30}\n")
     # ------------------parser prompt-------------------------
 
     # token_indices = get_indices_to_alter(stable, config.prompt) if config.token_indices is None else config.token_indices
