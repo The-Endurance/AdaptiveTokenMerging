@@ -176,6 +176,7 @@ class RunConfigAdversarial:
     # False = Your Adaptive Method
     # True  = Standard Baseline (Static Weights)
     run_standard_sd: bool = False
+    use_adaptive_merging: bool = True
     
     thresholds: Dict[int, float] = field(
         default_factory=lambda: {
@@ -219,7 +220,8 @@ class RunConfigStandard:
     # TOGGLE THIS MANUALLY TO COMPARE
     # False = Your Adaptive Method
     # True  = Standard Baseline (Static Weights)
-    run_standard_sd: bool = True
+    run_standard_sd: bool = False
+    use_adaptive_merging: bool = False
     
     thresholds: Dict[int, float] = field(
         default_factory=lambda: {

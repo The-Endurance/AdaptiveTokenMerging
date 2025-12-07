@@ -100,6 +100,8 @@ def run_on_prompt(
         eot_replace_step=config.eot_replace_step,
         use_pose_loss=config.use_pose_loss,
         negative_prompt="low res, ugly, blurry, artifact, unreal",
+        
+        use_adaptive_merging=getattr(config, "use_adaptive_merging", False)
     )
     image = outputs.images[0]
     return image

@@ -562,6 +562,7 @@ class tomePipeline(StableDiffusionXLPipeline):
         tome_control_steps = kwargs.get("tome_control_steps")
         eot_replace_step = kwargs.get("eot_replace_step")
         use_pose_loss = kwargs.get("use_pose_loss")
+        use_adaptive_merging = kwargs.get("use_adaptive_merging", False)
 
         # 0. Default height and width to unet
         height = height or self.default_sample_size * self.vae_scale_factor
@@ -684,6 +685,9 @@ class tomePipeline(StableDiffusionXLPipeline):
         # token merge
         # if not run_standard_sd and token_refinement_steps:
         #     prompt_embeds[0] = token_merge(prompt_embeds[0], indices_to_alter)
+        if not run_standard_sd and indices_to_alter and not use_adaptive_merging:
+             print("Applying STATIC Token Merging (Pre-loop)...")
+             prompt_embeds[0] = token_merge(prompt_embeds[0], indices_to_alter)
 
         # 4. Prepare timesteps
         timesteps, num_inference_steps = retrieve_timesteps(
@@ -843,7 +847,7 @@ class tomePipeline(StableDiffusionXLPipeline):
                 )
 
                 ### New code for CFG based token merging; don't merge before first iter, merge later
-                if not run_standard_sd and indices_to_alter:
+                if not run_standard_sd and indices_to_alter and use_adaptive_merging:
                     # 1. If it is the very first step, we just run normally to collect attention.
                     # 2. Immediately after the first step is done (or at start of step 1), calculate and merge.
                     
